@@ -339,9 +339,6 @@ const FlappyBird = () => {
       startGame();
     } else if (data.type === 'PIPE') {
       // Client receives pipe spawn parameters
-      // Host sends x, y, and id.
-      // To ensure sync, client should trust host's X, but mapped to logical time? 
-      // Simplest: just spawn it at logical width.
       gameRef.current.pipes.push({ x: LOGICAL_WIDTH, y: data.y, passed: false, id: data.id });
     } else if (data.type === 'GAMEOVER_SYNC') {
        // Opponent finished game
@@ -438,8 +435,7 @@ const FlappyBird = () => {
            die();
         }
         
-        // Ceiling Collision - just clamps Y, does not kill (allows flying over pipes technically if pipe doesn't go to infinity)
-        // But pipes in this game start from 0.
+        // Ceiling Collision
         if (game.bird.y - HITBOX_HEIGHT/2 <= 0) {
              game.bird.y = HITBOX_HEIGHT/2;
              game.bird.velocity = 0;
@@ -606,7 +602,7 @@ const FlappyBird = () => {
               finishMultiplayerGame();
           }
       }
-  }, [gameState, gameRef.current.opponent.dead, gameRef.current.bird.dead]); // Note: refs in dep array is tricky, relying on re-renders from other state helps
+  }, [gameState, gameRef.current.opponent.dead, gameRef.current.bird.dead]); 
 
   // Force re-check loop for game over
   useEffect(() => {
@@ -641,8 +637,6 @@ const FlappyBird = () => {
     const handleInput = (e: any) => {
        // Prevent default scrolling behavior on touch devices
        if (e.type === 'touchstart') {
-           // We only prevent default if we are playing to allow clicking buttons in menu?
-           // Actually, we should prevent default always on canvas to avoid scroll bounce
            if (e.target === canvasRef.current) {
                // e.preventDefault(); 
            }
