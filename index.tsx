@@ -18,15 +18,25 @@ interface PipeData {
 const LOGICAL_WIDTH = 480;
 const LOGICAL_HEIGHT = 800;
 
-const GRAVITY = 0.25;
-const JUMP = -5.5;
-const PIPE_SPEED = 3;
-const PIPE_SPAWN_RATE = 1600; // ms
-const PIPE_WIDTH = 60;
-const PIPE_GAP = 140; 
-const BIRD_WIDTH = 40;
-const BIRD_HEIGHT = 28;
+// Authentic Physics Constants
+const GRAVITY = 0.42;
+const JUMP = -8.0;
+const PIPE_SPEED = 3.5;
+const PIPE_SPAWN_RATE = 1400; // ms
+const PIPE_WIDTH = 64;
+const PIPE_GAP = 160; 
+
+// Dimensions
+const BIRD_WIDTH = 42;
+const BIRD_HEIGHT = 30;
+// Hitbox is smaller than visual for "fair" feel
+const HITBOX_WIDTH = 30;
+const HITBOX_HEIGHT = 24;
 const GROUND_HEIGHT = 120;
+
+const MAX_ROTATION = 90 * (Math.PI / 180);
+const MIN_ROTATION = -25 * (Math.PI / 180);
+const ROTATION_SPEED = 6 * (Math.PI / 180);
 
 // --- Assets (Programmatic drawing helpers) ---
 
@@ -49,27 +59,35 @@ const drawBird = (
   ctx.lineWidth = 3;
   
   ctx.beginPath();
+  // Draw centered
   ctx.rect(-BIRD_WIDTH / 2, -BIRD_HEIGHT / 2, BIRD_WIDTH, BIRD_HEIGHT);
   ctx.fill();
   ctx.stroke();
 
-  // Eye
+  // Eye (Larger)
   ctx.fillStyle = "#FFF";
-  ctx.fillRect(BIRD_WIDTH / 6, -BIRD_HEIGHT / 2 + 2, 12, 12);
-  ctx.strokeRect(BIRD_WIDTH / 6, -BIRD_HEIGHT / 2 + 2, 12, 12);
+  ctx.beginPath();
+  ctx.arc(BIRD_WIDTH/4, -BIRD_HEIGHT/4, 8, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
   
-  ctx.fillStyle = "#000"; // Pupil
-  ctx.fillRect(BIRD_WIDTH / 6 + 6, -BIRD_HEIGHT / 2 + 6, 4, 4);
+  // Pupil
+  ctx.fillStyle = "#000"; 
+  ctx.beginPath();
+  ctx.arc(BIRD_WIDTH/4 + 4, -BIRD_HEIGHT/4, 2, 0, Math.PI*2);
+  ctx.fill();
 
   // Beak
   ctx.fillStyle = "#F44336";
-  ctx.fillRect(BIRD_WIDTH / 6, 4, 16, 10);
-  ctx.strokeRect(BIRD_WIDTH / 6, 4, 16, 10);
+  ctx.fillRect(BIRD_WIDTH / 6, 4, 18, 12);
+  ctx.strokeRect(BIRD_WIDTH / 6, 4, 18, 12);
   
-  // Wing
+  // Wing (Retro style)
   ctx.fillStyle = "#FFF";
-  ctx.fillRect(-12, 2, 16, 10);
-  ctx.strokeRect(-12, 2, 16, 10);
+  ctx.beginPath();
+  ctx.ellipse(-6, 4, 10, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
 
   ctx.restore();
 };
@@ -84,7 +102,7 @@ const drawPipe = (ctx: CanvasRenderingContext2D, x: number, y: number, height: n
   ctx.strokeRect(x, isTop ? 0 : y, PIPE_WIDTH, height);
 
   // Cap
-  const capHeight = 28;
+  const capHeight = 30;
   const capY = isTop ? height - capHeight : y;
   const capOverhang = 4;
   
@@ -92,12 +110,14 @@ const drawPipe = (ctx: CanvasRenderingContext2D, x: number, y: number, height: n
   ctx.fillRect(x - capOverhang, capY, PIPE_WIDTH + (capOverhang*2), capHeight);
   ctx.strokeRect(x - capOverhang, capY, PIPE_WIDTH + (capOverhang*2), capHeight);
   
-  // Highlights
+  // Highlights (Pixel art style)
   ctx.fillStyle = "#9CE659"; 
-  ctx.fillRect(x + 4, isTop ? 0 : y + (isTop ? 0 : capHeight), 6, height - (isTop ? capHeight : 0));
+  // Long highlight
+  ctx.fillRect(x + 6, isTop ? 0 : y + (isTop ? 0 : capHeight), 4, height - (isTop ? capHeight : 0));
+  ctx.fillRect(x + 14, isTop ? 0 : y + (isTop ? 0 : capHeight), 2, height - (isTop ? capHeight : 0));
   
   // Cap Highlight
-  ctx.fillRect(x - capOverhang + 4, capY + 4, 6, capHeight - 8);
+  ctx.fillRect(x - capOverhang + 6, capY + 4, 4, capHeight - 8);
 };
 
 const drawBackground = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -366,6 +386,7 @@ const FlappyBird = () => {
   const jump = () => {
     if (gameRef.current.bird.dead) return;
     gameRef.current.bird.velocity = JUMP;
+    gameRef.current.bird.rotation = MIN_ROTATION;
   };
 
   // Main Loop
@@ -397,23 +418,30 @@ const FlappyBird = () => {
         game.bird.velocity += GRAVITY;
         game.bird.y += game.bird.velocity;
         
-        // Rotation
-        if (game.bird.velocity < 0) {
-           game.bird.rotation = -0.4;
+        // Accurate Rotation Logic
+        // If moving upwards or hovering, keep looking up
+        if (game.bird.velocity < 5) {
+             // Keeps snapping to look up while jumping/hovering
+             if (game.bird.rotation > MIN_ROTATION) {
+                 game.bird.rotation -= 10 * (Math.PI / 180);
+                 if (game.bird.rotation < MIN_ROTATION) game.bird.rotation = MIN_ROTATION;
+             }
         } else {
-           game.bird.rotation += 0.05;
-           if(game.bird.rotation > 1.5) game.bird.rotation = 1.5;
+             // Nose dive when falling fast
+             game.bird.rotation += ROTATION_SPEED;
+             if(game.bird.rotation > MAX_ROTATION) game.bird.rotation = MAX_ROTATION;
         }
 
         // Floor Collision
-        if (game.bird.y + BIRD_HEIGHT/2 >= LOGICAL_HEIGHT - GROUND_HEIGHT) {
-           game.bird.y = LOGICAL_HEIGHT - GROUND_HEIGHT - BIRD_HEIGHT/2;
+        if (game.bird.y + HITBOX_HEIGHT/2 >= LOGICAL_HEIGHT - GROUND_HEIGHT) {
+           game.bird.y = LOGICAL_HEIGHT - GROUND_HEIGHT - HITBOX_HEIGHT/2;
            die();
         }
         
-        // Ceiling Collision (Optional, prevents flying over pipes)
-        if (game.bird.y - BIRD_HEIGHT/2 <= 0) {
-             game.bird.y = BIRD_HEIGHT/2;
+        // Ceiling Collision - just clamps Y, does not kill (allows flying over pipes technically if pipe doesn't go to infinity)
+        // But pipes in this game start from 0.
+        if (game.bird.y - HITBOX_HEIGHT/2 <= 0) {
+             game.bird.y = HITBOX_HEIGHT/2;
              game.bird.velocity = 0;
         }
       }
@@ -421,8 +449,8 @@ const FlappyBird = () => {
       // Pipe Management (Host only spawns, Client receives)
       if (role === "HOST" || role === "SINGLE") {
         if (game.started && !game.bird.dead && Date.now() - game.lastPipeTime > PIPE_SPAWN_RATE) {
-           const minPipeY = 100;
-           const maxPipeY = LOGICAL_HEIGHT - GROUND_HEIGHT - PIPE_GAP - 100;
+           const minPipeY = 80;
+           const maxPipeY = LOGICAL_HEIGHT - GROUND_HEIGHT - PIPE_GAP - 80;
            const pipeY = Math.floor(Math.random() * (maxPipeY - minPipeY)) + minPipeY;
            
            const newPipe = { x: LOGICAL_WIDTH, y: pipeY, passed: false, id: game.pipeIdCounter++ };
@@ -443,19 +471,19 @@ const FlappyBird = () => {
         // Fixed bird X position
         const birdX = LOGICAL_WIDTH * 0.3;
         
-        // 1. Horizontal overlap
-        if (birdX + BIRD_WIDTH/2 - 4 > pipe.x && birdX - BIRD_WIDTH/2 + 4 < pipe.x + PIPE_WIDTH) {
+        // 1. Horizontal overlap using Hitbox
+        if (birdX + HITBOX_WIDTH/2 > pipe.x && birdX - HITBOX_WIDTH/2 < pipe.x + PIPE_WIDTH) {
              // 2. Vertical overlap (Hit Top OR Hit Bottom)
              if (
-                 game.bird.y - BIRD_HEIGHT/2 + 4 < pipe.y || 
-                 game.bird.y + BIRD_HEIGHT/2 - 4 > pipe.y + PIPE_GAP
+                 game.bird.y - HITBOX_HEIGHT/2 < pipe.y || 
+                 game.bird.y + HITBOX_HEIGHT/2 > pipe.y + PIPE_GAP
              ) {
                  die();
              }
         }
 
         // Score
-        if (!pipe.passed && pipe.x + PIPE_WIDTH < birdX - BIRD_WIDTH/2) {
+        if (!pipe.passed && pipe.x + PIPE_WIDTH < birdX - HITBOX_WIDTH/2) {
            pipe.passed = true;
            game.bird.score += 1;
         }
